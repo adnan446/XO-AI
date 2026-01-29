@@ -59,6 +59,23 @@ export default function Home() {
           >
             Play with AI
           </button>
+          <button
+            onClick={() => navigate('/sketch')}
+            className="
+    px-5 sm:px-6 py-3 
+    text-sm sm:text-base font-semibold
+    text-black
+    bg-white
+    border border-black
+    rounded-full
+    hover:shadow-md
+    transition-all duration-300
+    w-40 sm:w-48
+  "
+          >
+            Sketch
+          </button>
+
         </div>
       </div>
 
