@@ -4,6 +4,7 @@ import Home from './Home';
 import Multiplayer from './Multyplayer';
 import Withai from './Withai';
 import TicTacToe from './TicTacToe';
+import ShootingGame from './ShootingGame';
 
 function App() {
   return (
@@ -13,6 +14,7 @@ function App() {
         <Route path="/multiplayer" element={<Multiplayer />} />
         <Route path="/withai" element={<Withai />} />
         <Route path="/sketch" element={<TicTacToe />} />
+        <Route path="/shooter" element={<ShootingGame />} />
 
       </Routes>
     </Router>
