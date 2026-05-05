@@ -78,7 +78,7 @@ export default function Home() {
 
           <button
             onClick={() => navigate('/shooter')}
-            className="px-5 sm:px-6 py-3 text-sm sm:text-base font-semibold text-white border border-pink-500 rounded-full bg-black hover:bg-pink-500/20 hover:shadow-pink-500 transition-all duration-300 w-40 sm:w-48"
+            className="hidden md:block px-5 sm:px-6 py-3 text-sm sm:text-base font-semibold text-white border border-pink-500 rounded-full bg-black hover:bg-pink-500/20 hover:shadow-pink-500 transition-all duration-300 w-40 sm:w-48"
           >
             Shooting Game
           </button>
