@@ -1,7 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { FilesetResolver, HandLandmarker } from '@mediapipe/tasks-vision';
 import { GameState } from '../utils/gameLogic';
-import { isGunGesture, detectTrigger } from '../utils/gestureDetector';
 
 const GameArea = ({ onScoreChange, onLivesChange, gameStateRef }) => {
   const videoRef = useRef(null);
@@ -10,12 +9,9 @@ const GameArea = ({ onScoreChange, onLivesChange, gameStateRef }) => {
   const [isLoaded, setIsLoaded] = useState(false);
   const [error, setError] = useState(null);
 
-  const requestRef = useRef(null);
   const landmarkerRef = useRef(null);
   const gameRef = useRef(null);
   const smoothedCrosshair = useRef(null);
-
-  const targetCrosshair = useRef(null);
 
   useEffect(() => {
     let active = true;
@@ -31,7 +27,10 @@ const GameArea = ({ onScoreChange, onLivesChange, gameStateRef }) => {
             delegate: "GPU"
           },
           runningMode: "VIDEO",
-          numHands: 1
+          numHands: 1,
+          minHandDetectionConfidence: 0.5,
+          minHandPresenceConfidence: 0.5,
+          minTrackingConfidence: 0.5
         });
         
         if (!active) return;
@@ -39,7 +38,7 @@ const GameArea = ({ onScoreChange, onLivesChange, gameStateRef }) => {
 
         // Setup Webcam
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: { facingMode: "user", width: 1280, height: 720 }
+          video: { facingMode: "user", width: { ideal: 320 }, height: { ideal: 240 }, frameRate: { ideal: 60 } }
         });
         
         if (videoRef.current) {
@@ -64,10 +63,10 @@ const GameArea = ({ onScoreChange, onLivesChange, gameStateRef }) => {
 
     return () => {
       active = false;
-      if (videoRef.current && videoRef.current.srcObject) {
-         videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+      const vid = videoRef.current;
+      if (vid && vid.srcObject) {
+         vid.srcObject.getTracks().forEach(track => track.stop());
       }
-      if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
   }, []);
 
@@ -78,63 +77,92 @@ const GameArea = ({ onScoreChange, onLivesChange, gameStateRef }) => {
     const ctx = canvas.getContext('2d');
     const video = videoRef.current;
 
-    // Fixed canvas size for rendering consistency
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
+    // High-resolution canvas rendering
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    const handleResize = () => {
+      if (canvasRef.current) {
+        canvasRef.current.width = window.innerWidth;
+        canvasRef.current.height = window.innerHeight;
+        if (gameRef.current) {
+          gameRef.current.resize(window.innerWidth, window.innerHeight);
+        }
+      }
+    };
+    window.addEventListener('resize', handleResize);
 
     gameRef.current = new GameState(
       canvas.width, 
       canvas.height, 
-      (score, combo) => onScoreChange(score, combo),
+      (points, combo) => onScoreChange(points, combo),
       () => onLivesChange(-1) // miss
     );
     gameStateRef.current = gameRef.current;
 
-    let lastVideoTime = -1;
+    const rawLandmark = { current: null };
+    const handVisible = { current: false };
+    const aiRafRef = { current: null };
+    const renderRafRef = { current: null };
+    const lastFrameTime = { current: performance.now() };
 
-    const loop = (now) => {
-      
-      // 1. Process new video frame data to set targets
-      if (landmarkerRef.current && video.currentTime !== lastVideoTime) {
-        lastVideoTime = video.currentTime;
+    const aiLoop = () => {
+      if (landmarkerRef.current && video.readyState >= 2) {
         const results = landmarkerRef.current.detectForVideo(video, performance.now());
-        
-        if (results.landmarks && results.landmarks.length > 0) {
-          landmarkerRef.current.lastHands = results.landmarks[0];
-          const indexFinger = landmarkerRef.current.lastHands[8];
+        if (results.landmarks && results.landmarks[0]) {
+          const tip = results.landmarks[0][8];
+          const mid = results.landmarks[0][7];
           
-          targetCrosshair.current = {
-            x: (1 - indexFinger.x) * canvas.width,
-            y: indexFinger.y * canvas.height
-          };
+          const vx = tip.x - mid.x;
+          const vy = tip.y - mid.y;
+          
+          const predictedX = (1 - (tip.x + vx * 0.5)) * canvas.width;
+          const predictedY = (tip.y + vy * 0.5) * canvas.height;
+
+          rawLandmark.current = { x: predictedX, y: predictedY };
+          handVisible.current = true;
         } else {
-          landmarkerRef.current.lastHands = null;
-          targetCrosshair.current = null;
+          handVisible.current = false;
         }
       }
-
-      // 2. Instant tracking with no artificial delay
-      if (targetCrosshair.current) {
-         if (!smoothedCrosshair.current) {
-            smoothedCrosshair.current = { ...targetCrosshair.current };
-         } else {
-            // Very light smoothing just to prevent micro-jitter, but fast enough to feel instantaneous (0.85)
-            smoothedCrosshair.current.x += (targetCrosshair.current.x - smoothedCrosshair.current.x) * 0.85;
-            smoothedCrosshair.current.y += (targetCrosshair.current.y - smoothedCrosshair.current.y) * 0.85;
-         }
-      } else {
-         smoothedCrosshair.current = null; // No hand
-      }
-
-      // 3. Draw game
-      gameRef.current.updateAndDraw(ctx, now, smoothedCrosshair.current, landmarkerRef.current?.lastHands);
-
-      requestRef.current = requestAnimationFrame(loop);
+      aiRafRef.current = requestAnimationFrame(aiLoop);
     };
 
-    requestRef.current = requestAnimationFrame(loop);
+    const renderLoop = (timestamp) => {
+      const deltaMs = timestamp - lastFrameTime.current;
+      lastFrameTime.current = timestamp;
 
-    return () => cancelAnimationFrame(requestRef.current);
+      if (handVisible.current && rawLandmark.current) {
+        if (!smoothedCrosshair.current) {
+          smoothedCrosshair.current = { ...rawLandmark.current };
+        } else {
+          const safeDelta = Math.min(Math.max(deltaMs, 1), 100);
+          const factor = 1 - Math.pow(0.15, safeDelta / 16.666);
+          smoothedCrosshair.current.x += (rawLandmark.current.x - smoothedCrosshair.current.x) * factor;
+          smoothedCrosshair.current.y += (rawLandmark.current.y - smoothedCrosshair.current.y) * factor;
+        }
+      } else {
+        smoothedCrosshair.current = null;
+      }
+
+      const cx = smoothedCrosshair.current?.x ?? null;
+      const cy = smoothedCrosshair.current?.y ?? null;
+
+      if (gameRef.current) {
+        gameRef.current.updateAndDraw(ctx, cx, cy, handVisible.current, deltaMs);
+      }
+
+      renderRafRef.current = requestAnimationFrame(renderLoop);
+    };
+
+    aiRafRef.current = requestAnimationFrame(aiLoop);
+    renderRafRef.current = requestAnimationFrame(renderLoop);
+
+    return () => {
+      window.removeEventListener('resize', handleResize);
+      cancelAnimationFrame(aiRafRef.current);
+      cancelAnimationFrame(renderRafRef.current);
+    };
   }, [isLoaded, onScoreChange, onLivesChange, gameStateRef]);
 
   return (
@@ -157,6 +185,7 @@ const GameArea = ({ onScoreChange, onLivesChange, gameStateRef }) => {
          <canvas
            ref={canvasRef}
            className="absolute w-full h-full object-cover pointer-events-none"
+           style={{ willChange: 'transform', transform: 'translateZ(0)' }}
          />
       </div>
     </div>
