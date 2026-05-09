@@ -18,8 +18,8 @@ export default function TicTacToe() {
   const [winner, setWinner] = useState(null);
   const [winningLine, setWinningLine] = useState([]);
   const [isAiThinking, setIsAiThinking] = useState(false);
-  // New State: 'ai' or 'multiplayer'
   const [gameMode, setGameMode] = useState("ai");
+  const [aiSymbol, setAiSymbol] = useState(PLAYER_O);
 
   // --- Logic: Win Detection ---
   const findWinningLine = useCallback((currentBoard) => {
@@ -33,14 +33,26 @@ export default function TicTacToe() {
   }, []);
 
   // --- Logic: Reset Game ---
-  const resetGame = () => {
+  const resetGame = (newMode) => {
+    const activeMode = newMode || gameMode;
     setBoard(Array(9).fill(null));
     setMoves({ [PLAYER_X]: [], [PLAYER_O]: [] });
     setTurn(PLAYER_X);
     setWinner(null);
     setWinningLine([]);
     setIsAiThinking(false);
+    
+    // Randomize who starts (AI or User)
+    if (activeMode === "ai") {
+      const shouldAiStart = Math.random() < 0.5;
+      setAiSymbol(shouldAiStart ? PLAYER_X : PLAYER_O);
+    }
   };
+
+  // Initial reset to handle randomization on mount
+  useEffect(() => {
+    resetGame();
+  }, []);
 
   // --- Logic: Move Execution ---
   const executeMove = useCallback((index, player) => {
@@ -70,10 +82,12 @@ export default function TicTacToe() {
   }, [board, moves, winner, findWinningLine]);
 
   // --- AI Logic (Minimax) ---
-  const minimax = (tempBoard, tempMoves, depth, isMaximizing) => {
+  const minimax = (tempBoard, tempMoves, depth, isMaximizing, aiSym) => {
+    const userSym = aiSym === PLAYER_X ? PLAYER_O : PLAYER_X;
     const winResult = findWinningLine(tempBoard);
-    if (winResult?.winner === PLAYER_O) return 10 - depth;
-    if (winResult?.winner === PLAYER_X) return depth - 10;
+    
+    if (winResult?.winner === aiSym) return 10 - depth;
+    if (winResult?.winner === userSym) return depth - 10;
     if (depth >= MAX_DEPTH) return 0;
 
     let bestScore = isMaximizing ? -Infinity : Infinity;
@@ -84,7 +98,7 @@ export default function TicTacToe() {
           [PLAYER_X]: [...tempMoves[PLAYER_X]],
           [PLAYER_O]: [...tempMoves[PLAYER_O]]
         };
-        const activePlayer = isMaximizing ? PLAYER_O : PLAYER_X;
+        const activePlayer = isMaximizing ? aiSym : userSym;
 
         nextM[activePlayer].push(i);
         nextB[i] = activePlayer;
@@ -94,7 +108,7 @@ export default function TicTacToe() {
           nextB[oldest] = null;
         }
 
-        const res = minimax(nextB, nextM, depth + 1, !isMaximizing);
+        const res = minimax(nextB, nextM, depth + 1, !isMaximizing, aiSym);
         bestScore = isMaximizing ? Math.max(res, bestScore) : Math.min(res, bestScore);
       }
     }
@@ -103,31 +117,42 @@ export default function TicTacToe() {
 
   // --- Effect: AI Turn Trigger ---
   useEffect(() => {
-    // Only trigger if it's O's turn AND mode is AI
-    if (gameMode === "ai" && turn === PLAYER_O && !winner) {
+    // Only trigger if it's the AI's turn AND mode is AI
+    if (gameMode === "ai" && turn === aiSymbol && !winner) {
       setIsAiThinking(true);
       const timer = setTimeout(() => {
         let bestScore = -Infinity;
         let move = -1;
+
         for (let i = 0; i < 9; i++) {
           if (!board[i]) {
             const nextB = [...board];
-            const nextM = { [PLAYER_X]: [...moves[PLAYER_X]], [PLAYER_O]: [...moves[PLAYER_O], i] };
-            nextB[i] = PLAYER_O;
-            if (nextM[PLAYER_O].length > 3) nextB[nextM[PLAYER_O].shift()] = null;
-            const score = minimax(nextB, nextM, 0, false);
+            const nextM = { 
+              [PLAYER_X]: [...moves[PLAYER_X]], 
+              [PLAYER_O]: [...moves[PLAYER_O]] 
+            };
+            
+            // AI makes a hypothetical move
+            nextM[aiSymbol] = [...nextM[aiSymbol], i];
+            nextB[i] = aiSymbol;
+            if (nextM[aiSymbol].length > 3) {
+              const oldestIndex = nextM[aiSymbol].shift();
+              nextB[oldestIndex] = null;
+            }
+
+            const score = minimax(nextB, nextM, 0, false, aiSymbol);
             if (score > bestScore) {
               bestScore = score;
               move = i;
             }
           }
         }
-        if (move !== -1) executeMove(move, PLAYER_O);
+        if (move !== -1) executeMove(move, aiSymbol);
         setIsAiThinking(false);
       }, 600);
       return () => clearTimeout(timer);
     }
-  }, [turn, winner, board, moves, gameMode, executeMove]);
+  }, [turn, winner, board, moves, gameMode, aiSymbol, executeMove]);
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen bg-[#f4f1ea] p-4 sm:p-6 font-serif overflow-hidden">
@@ -146,13 +171,13 @@ export default function TicTacToe() {
         <div className="flex justify-center mb-8">
           <div className="relative flex border-2 border-zinc-800 p-1 rotate-1 bg-white/50">
             <button 
-              onClick={() => { setGameMode("ai"); resetGame(); }}
+              onClick={() => { setGameMode("ai"); resetGame("ai"); }}
               className={`px-4 py-1 text-sm transition-colors ${gameMode === 'ai' ? 'bg-zinc-800 text-white' : 'hover:bg-zinc-200'}`}
             >
               AI
             </button>
             <button 
-              onClick={() => { setGameMode("multiplayer"); resetGame(); }}
+              onClick={() => { setGameMode("multiplayer"); resetGame("multiplayer"); }}
               className={`px-4 py-1 text-sm transition-colors ${gameMode === 'multiplayer' ? 'bg-zinc-800 text-white' : 'hover:bg-zinc-200'}`}
             >
               Multi
@@ -210,11 +235,11 @@ export default function TicTacToe() {
             <div className="space-y-4 animate-in fade-in zoom-in duration-300">
               <p className="text-xl sm:text-2xl font-bold italic underline decoration-wavy decoration-red-500">
                 {gameMode === 'ai' 
-                  ? (winner === PLAYER_X ? "You Won!" : "AI Wins!") 
+                  ? (winner === aiSymbol ? "AI Wins!" : "You Won!") 
                   : `Player ${winner} Wins!`}
               </p>
               <button
-                onClick={resetGame}
+                onClick={() => resetGame()}
                 className="text-base sm:text-lg border-2 border-zinc-800 px-6 py-1 hover:bg-zinc-800 hover:text-white transition-colors rotate-1 active:scale-95"
               >
                 Tear page & Restart
