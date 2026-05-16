@@ -3,34 +3,74 @@ import { useNavigate } from 'react-router-dom';
 export default function Home() {
   const navigate = useNavigate();
 
-  const floatingXO = Array.from({ length: 90 }, (_, i) => {
+  const floatingXO = Array.from({ length: 40 }, (_, i) => {
     const isX = Math.random() > 0.5;
     return {
       key: `xo-${i}`,
       content: isX ? 'X' : 'O',
-      color: isX ? 'text-pink-400' : 'text-cyan-400',
       top: `${Math.random() * 100}%`,
       left: `${Math.random() * 100}%`,
-      rotate: `${Math.random() * 360}deg`,
-      duration: `${6 + Math.random() * 4}s`,
-      delay: `${Math.random() * 4}s`,
+      rotate: `${Math.random() * 40 - 20}deg`,
+      size: `${1.5 + Math.random() * 2}rem`,
+      opacity: 0.05 + Math.random() * 0.1,
     };
   });
 
+  const modes = [
+    {
+      title: "Multiplayer",
+      desc: "Battle online with friends",
+      path: "/multiplayer",
+      icon: "⚔️",
+      color: "bg-yellow-100",
+      border: "border-zinc-800",
+    },
+    {
+      title: "Play with AI",
+      desc: "Challenge the smart bot",
+      path: "/withai",
+      icon: "🤖",
+      color: "bg-cyan-100",
+      border: "border-zinc-800",
+    },
+    {
+      title: "Sketch Mode",
+      desc: "Classic hand-drawn ink",
+      path: "/sketch",
+      icon: "✎",
+      color: "bg-rose-100",
+      border: "border-zinc-800",
+    },
+    {
+      title: "Shooting Game",
+      desc: "Action packed shooter",
+      path: "/shooter",
+      icon: "🎯",
+      color: "bg-emerald-100",
+      border: "border-zinc-800",
+      hideOnMobile: true,
+    },
+  ];
+
   return (
-    <div className="relative min-h-screen bg-black flex items-center justify-center overflow-hidden px-4">
-      {/* Floating XO Background */}
+    <div className="relative min-h-screen bg-[#f4f1ea] flex flex-col items-center justify-center overflow-hidden px-4 font-serif">
+      {/* Paper Texture Overlay */}
+      <div className="fixed inset-0 pointer-events-none opacity-20 contrast-125 z-0"
+        style={{ backgroundImage: `url('https://www.transparenttextures.com/patterns/natural-paper.png')` }} />
+
+      {/* Floating Elements (Doodles) */}
       <div className="absolute inset-0 pointer-events-none z-0">
         {floatingXO.map((xo) => (
           <div
             key={xo.key}
-            className={`absolute text-3xl sm:text-4xl font-bold opacity-20 animate-blink select-none ${xo.color}`}
+            className="absolute font-bold text-zinc-800 select-none"
             style={{
               top: xo.top,
               left: xo.left,
+              fontSize: xo.size,
+              opacity: xo.opacity,
               transform: `rotate(${xo.rotate})`,
-              animation: `floatXO ${xo.duration} ease-in-out infinite, blink 2s infinite`,
-              animationDelay: `${xo.delay}, ${xo.delay}`,
+              fontFamily: '"Permanent Marker", cursive',
             }}
           >
             {xo.content}
@@ -38,113 +78,68 @@ export default function Home() {
         ))}
       </div>
 
-      {/* Main Card */}
-      <div className="relative z-10 w-full max-w-xs sm:max-w-sm bg-[#0a0a0a] border border-gray-800 rounded-3xl shadow-xl p-6 sm:p-10 space-y-6 text-center">
-        <h1 className="text-4xl sm:text-5xl font-extrabold text-white tracking-wider glow-text">
-          XO-AI
-        </h1>
-        <p className="text-gray-400 text-base sm:text-lg">Choose your game mode</p>
+      {/* Main Hub */}
+      <div className="relative z-10 w-full max-w-3xl flex flex-col items-center">
+        
+        {/* Header */}
+        <div className="text-center mb-10 space-y-2">
+          <div className="inline-block px-4 py-1 border-2 border-zinc-800 bg-white/80 rotate-1 text-xs font-bold text-zinc-800 uppercase mb-2"
+            style={{ fontFamily: '"Permanent Marker", cursive' }}>
+            Main Menu
+          </div>
+          <h1 className="text-6xl sm:text-7xl font-bold text-zinc-800 tracking-tighter"
+            style={{ fontFamily: '"Permanent Marker", cursive' }}>
+            Sketch XO
+          </h1>
+          <p className="text-zinc-600 text-lg italic mt-2">
+            Select a mode to play
+          </p>
+          <div className="w-40 h-1 bg-zinc-800 mx-auto mt-2 rounded-full opacity-70" />
+        </div>
 
-        {/* Buttons */}
-        <div className="flex flex-col gap-4 sm:gap-5 items-center mt-15">
-          <button
-            onClick={() => navigate('/multiplayer')}
-            className="px-5 sm:px-6 py-3 text-sm sm:text-base font-semibold text-white border border-pink-500 rounded-full bg-black hover:bg-pink-500/20 hover:shadow-pink-500 transition-all duration-300 w-40 sm:w-48"
-          >
-            Multiplayer
-          </button>
-          <button
-            onClick={() => navigate('/withai')}
-            className="px-5 sm:px-6 py-3 text-sm sm:text-base font-semibold text-white border border-cyan-400 rounded-full bg-black hover:bg-cyan-400/20 hover:shadow-cyan-400 transition-all duration-300 w-40 sm:w-48"
-          >
-            Play with AI
-          </button>
-          <button
-            onClick={() => navigate('/sketch')}
-            className="
-    px-5 sm:px-6 py-3 
-    text-sm sm:text-base font-semibold
-    text-black
-    bg-white
-    border border-black
-    rounded-full
-    hover:shadow-md
-    transition-all duration-300
-    w-40 sm:w-48
-  "
-          >
-            Sketch
-          </button>
+        {/* Grid of Modes */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
+          {modes.map((mode, i) => (
+            <div
+              key={mode.path}
+              onClick={() => navigate(mode.path)}
+              className={`group relative overflow-hidden ${mode.color} border-2 border-zinc-800 p-6 cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-95 flex flex-col justify-between h-40 ${mode.hideOnMobile ? 'hidden md:flex' : ''}`}
+              style={{ 
+                transform: `rotate(${i % 2 === 0 ? '-1deg' : '1deg'})`,
+                boxShadow: "4px 4px 0px 0px #27272a"
+              }}
+            >
+              <div className="flex items-center justify-between">
+                <div className="text-4xl">{mode.icon}</div>
+                <div className="text-sm font-bold text-zinc-500" style={{ fontFamily: '"Permanent Marker", cursive' }}>
+                  #{i + 1}
+                </div>
+              </div>
 
-          <button
-            onClick={() => navigate('/shooter')}
-            className="hidden md:block px-5 sm:px-6 py-3 text-sm sm:text-base font-semibold text-white border border-pink-500 rounded-full bg-black hover:bg-pink-500/20 hover:shadow-pink-500 transition-all duration-300 w-40 sm:w-48"
-          >
-            Shooting Game
-          </button>
+              <div className="mt-auto">
+                <h2 className="text-2xl font-bold text-zinc-800 flex items-center gap-2" style={{ fontFamily: '"Permanent Marker", cursive' }}>
+                  {mode.title}
+                </h2>
+                <p className="text-sm text-zinc-600 italic mt-1">{mode.desc}</p>
+              </div>
 
+              {/* Hand-drawn look underline on hover */}
+              <div className="absolute bottom-0 left-0 w-0 h-1 bg-zinc-800 transition-all duration-300 group-hover:w-full" />
+            </div>
+          ))}
+        </div>
+
+        {/* Footer info */}
+        <div className="mt-16 text-center text-xs text-zinc-500 font-serif">
+          <p className="italic">"The ink fades every 3 moves..."</p>
+          <p className="mt-1">© 2026 XO Games</p>
         </div>
       </div>
 
-      {/* Styles */}
-      <style jsx>{`
-        @keyframes floatXO {
-          0% {
-            transform: translateY(0px) rotate(0deg);
-          }
-          50% {
-            transform: translateY(-20px) rotate(180deg);
-          }
-          100% {
-            transform: translateY(0px) rotate(360deg);
-          }
-        }
-
-        @keyframes blink {
-          0%, 100% {
-            opacity: 0.15;
-          }
-          50% {
-            opacity: 0.3;
-          }
-        }
-
-        @keyframes pulseGlow {
-          0%, 100% {
-            text-shadow: 0 0 5px #0ff, 0 0 15px #f0f, 0 0 30px #0ff;
-          }
-          50% {
-            text-shadow: 0 0 10px #f0f, 0 0 25px #0ff, 0 0 45px #f0f;
-          }
-        }
-
-        .glow-text {
-          animation: pulseGlow 4s ease-in-out infinite;
-        }
-
-        /* Extra Responsive Tweaks */
-
-        /* Very small devices: smaller title and buttons */
-        @media (max-width: 360px) {
-          h1.glow-text {
-            font-size: 2.5rem !important; /* ~ text-3xl */
-          }
-          button {
-            width: 140px !important;
-            font-size: 0.8rem !important;
-            padding-top: 0.5rem !important;
-            padding-bottom: 0.5rem !important;
-          }
-        }
-
-        /* Tablets: increase padding and spacing */
-        @media (min-width: 640px) and (max-width: 1023px) {
-          div.relative.z-10 {
-            padding: 3rem !important; /* more padding on tablets */
-          }
-          div.flex.flex-col.gap-4 {
-            gap: 1.5rem !important;
-          }
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Permanent+Marker&display=swap');
+        body {
+          touch-action: manipulation;
         }
       `}</style>
     </div>
