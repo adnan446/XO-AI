@@ -82,45 +82,45 @@ export default function Home() {
       <div className="relative z-10 w-full max-w-3xl flex flex-col items-center">
         
         {/* Header */}
-        <div className="text-center mb-10 space-y-2">
-          <div className="inline-block px-4 py-1 border-2 border-zinc-800 bg-white/80 rotate-1 text-xs font-bold text-zinc-800 uppercase mb-2"
+        <div className="text-center mb-6 sm:mb-10 space-y-1 sm:space-y-2">
+          <div className="inline-block px-3 py-0.5 sm:px-4 sm:py-1 border-2 border-zinc-800 bg-white/80 rotate-1 text-[10px] sm:text-xs font-bold text-zinc-800 uppercase mb-1 sm:mb-2"
             style={{ fontFamily: '"Permanent Marker", cursive' }}>
             Main Menu
           </div>
-          <h1 className="text-6xl sm:text-7xl font-bold text-zinc-800 tracking-tighter"
+          <h1 className="text-4xl sm:text-7xl font-bold text-zinc-800 tracking-tighter"
             style={{ fontFamily: '"Permanent Marker", cursive' }}>
             Sketch XO
           </h1>
-          <p className="text-zinc-600 text-lg italic mt-2">
+          <p className="text-zinc-600 text-sm sm:text-lg italic mt-1 sm:mt-2">
             Select a mode to play
           </p>
-          <div className="w-40 h-1 bg-zinc-800 mx-auto mt-2 rounded-full opacity-70" />
+          <div className="w-28 sm:w-40 h-1 bg-zinc-800 mx-auto mt-1.5 sm:mt-2 rounded-full opacity-70" />
         </div>
 
         {/* Grid of Modes */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 w-full">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6 w-full px-2 sm:px-0">
           {modes.map((mode, i) => (
             <div
               key={mode.path}
               onClick={() => navigate(mode.path)}
-              className={`group relative overflow-hidden ${mode.color} border-2 border-zinc-800 p-6 cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-95 flex flex-col justify-between h-40 ${mode.hideOnMobile ? 'hidden md:flex' : ''}`}
+              className={`group relative overflow-hidden ${mode.color} border-2 border-zinc-800 p-4 sm:p-6 cursor-pointer transition-all duration-200 hover:scale-[1.02] active:scale-95 flex flex-col justify-between h-28 sm:h-40 ${mode.hideOnMobile ? 'hidden md:flex' : ''}`}
               style={{ 
                 transform: `rotate(${i % 2 === 0 ? '-1deg' : '1deg'})`,
                 boxShadow: "4px 4px 0px 0px #27272a"
               }}
             >
               <div className="flex items-center justify-between">
-                <div className="text-4xl">{mode.icon}</div>
-                <div className="text-sm font-bold text-zinc-500" style={{ fontFamily: '"Permanent Marker", cursive' }}>
+                <div className="text-2xl sm:text-4xl">{mode.icon}</div>
+                <div className="text-xs sm:text-sm font-bold text-zinc-500" style={{ fontFamily: '"Permanent Marker", cursive' }}>
                   #{i + 1}
                 </div>
               </div>
 
               <div className="mt-auto">
-                <h2 className="text-2xl font-bold text-zinc-800 flex items-center gap-2" style={{ fontFamily: '"Permanent Marker", cursive' }}>
+                <h2 className="text-lg sm:text-2xl font-bold text-zinc-800 flex items-center gap-2" style={{ fontFamily: '"Permanent Marker", cursive' }}>
                   {mode.title}
                 </h2>
-                <p className="text-sm text-zinc-600 italic mt-1">{mode.desc}</p>
+                <p className="text-xs sm:text-sm text-zinc-600 italic mt-0.5 sm:mt-1">{mode.desc}</p>
               </div>
 
               {/* Hand-drawn look underline on hover */}
@@ -130,7 +130,7 @@ export default function Home() {
         </div>
 
         {/* Footer info */}
-        <div className="mt-16 text-center text-xs text-zinc-500 font-serif">
+        <div className="mt-8 sm:mt-16 text-center text-[10px] sm:text-xs text-zinc-500 font-serif">
           <p className="italic">"The ink fades every 3 moves..."</p>
           <p className="mt-1">© 2026 XO Games</p>
         </div>
