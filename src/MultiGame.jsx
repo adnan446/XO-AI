@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo, memo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { socket } from "./socket/socket";
 
@@ -42,7 +42,7 @@ function PaperDoodles() {
 }
 
 // ── Sketchy cell ───────────────────────────────────────────────────────────────
-function Cell({ value, index, onClick, isWin, canClick, isOldest }) {
+const Cell = memo(function Cell({ value, index, onClick, isWin, canClick, isOldest }) {
   return (
     <button
       id={`cell-${index}`}
@@ -70,7 +70,7 @@ function Cell({ value, index, onClick, isWin, canClick, isOldest }) {
       )}
     </button>
   );
-}
+});
 
 // ── Main Game ──────────────────────────────────────────────────────────────────
 export default function MultiGame() {
@@ -92,11 +92,22 @@ export default function MultiGame() {
   const mySymbolRef = useRef(null);
   const phaseRef    = useRef("connecting");
   const hasJoinedRef = useRef(false);
+  
+  // Refs for Optimistic UI Rollback
+  const rollbackTimeoutRef = useRef(null);
+  const previousStateRef = useRef(null);
 
   function updatePhase(p) { phaseRef.current = p; setPhase(p); }
   function updateSymbol(s) { mySymbolRef.current = s; setMySymbol(s); }
 
-  const winLine    = getWinLine(board);
+  const clearRollbackTimeout = useCallback(() => {
+    if (rollbackTimeoutRef.current) {
+      clearTimeout(rollbackTimeoutRef.current);
+      rollbackTimeoutRef.current = null;
+    }
+  }, []);
+
+  const winLine    = useMemo(() => getWinLine(board), [board]);
   const isMyTurn   = phase === "playing" && turn === mySymbol;
   const inviteLink = `${window.location.origin}/multi/${roomId}`;
 
@@ -129,6 +140,7 @@ export default function MultiGame() {
 
     // Server response to get_room_state — syncs board/phase on mount
     socket.on("room_state", ({ board: b, moves: m, turn: t, winner: w, playerCount, mySymbol: sym }) => {
+      clearRollbackTimeout();
       setBoard(b);
       setMoves(m);
       setTurn(t);
@@ -152,6 +164,7 @@ export default function MultiGame() {
 
     // game_start fires for BOTH players — always transition to playing
     socket.on("game_start", ({ board: b, moves: m, turn: t }) => {
+      clearRollbackTimeout();
       setBoard(b);
       setMoves(m);
       setTurn(t);
@@ -161,12 +174,14 @@ export default function MultiGame() {
     });
 
     socket.on("receive_move", ({ board: b, moves: m, turn: t }) => {
+      clearRollbackTimeout();
       setBoard(b);
       setMoves(m);
       setTurn(t);
     });
 
     socket.on("game_over", ({ board: b, moves: m, winner: w }) => {
+      clearRollbackTimeout();
       setBoard(b);
       setMoves(m);
       setWinner(w);
@@ -217,12 +232,47 @@ export default function MultiGame() {
       socket.off("error_message");
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [roomId]);
+  }, [roomId, clearRollbackTimeout]);
 
   const handleCellClick = useCallback((index) => {
     if (!isMyTurn || board[index] || phase !== "playing") return;
+    
+    // 1. Save previous state for rollback
+    previousStateRef.current = { board, moves, turn };
+
+    // 2. Perform Optimistic Update
+    const newBoard = [...board];
+    newBoard[index] = mySymbol;
+    
+    const newMoves = { X: [...moves.X], O: [...moves.O] };
+    newMoves[mySymbol].push(index);
+    if (newMoves[mySymbol].length > 3) {
+      const oldestIndex = newMoves[mySymbol].shift();
+      newBoard[oldestIndex] = null;
+    }
+    
+    const nextTurn = mySymbol === "X" ? "O" : "X";
+
+    setBoard(newBoard);
+    setMoves(newMoves);
+    setTurn(nextTurn);
+
+    // 3. Set Rollback Timeout
+    clearRollbackTimeout();
+    rollbackTimeoutRef.current = setTimeout(() => {
+      // Revert if no server confirmation within 2.5s
+      if (previousStateRef.current) {
+        setBoard(previousStateRef.current.board);
+        setMoves(previousStateRef.current.moves);
+        setTurn(previousStateRef.current.turn);
+        setToast("Move synchronization failed.");
+        setTimeout(() => setToast(null), 4000);
+      }
+    }, 2500);
+
+    // 4. Emit actual move
     socket.emit("make_move", { roomId, index });
-  }, [isMyTurn, board, phase, roomId]);
+  }, [isMyTurn, board, moves, phase, roomId, mySymbol, clearRollbackTimeout]);
 
   function handleRematch() {
     setRematchStatus("sent");
