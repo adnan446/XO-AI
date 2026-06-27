@@ -74,7 +74,8 @@ function Cell({ value, index, onClick, isWin, canClick, isOldest }) {
 
 // ── Main Game ──────────────────────────────────────────────────────────────────
 export default function MultiGame() {
-  const { roomId } = useParams();
+  const { roomId: rawRoomId } = useParams();
+  const roomId = rawRoomId ? rawRoomId.toUpperCase() : "";
   const navigate   = useNavigate();
 
   const [phase, setPhase]         = useState("connecting");
@@ -85,6 +86,7 @@ export default function MultiGame() {
   const [winner, setWinner]       = useState(null);
   const [toast, setToast]         = useState(null);
   const [copied, setCopied]       = useState(false);
+  const [rematchStatus, setRematchStatus] = useState(null); // null, "sent", "received"
 
   // Keep refs so socket callbacks always have fresh values
   const mySymbolRef = useRef(null);
@@ -100,22 +102,29 @@ export default function MultiGame() {
 
   // ── Socket setup ─────────────────────────────────────────────────────────
   useEffect(() => {
-    if (!socket.connected) socket.connect();
+    const onConnect = () => {
+      if (!hasJoinedRef.current) {
+        hasJoinedRef.current = true;
+        const savedSymbol = sessionStorage.getItem("mySymbol");
+        const savedRoom   = sessionStorage.getItem("roomId");
 
-    if (!hasJoinedRef.current) {
-      hasJoinedRef.current = true;
-      const savedSymbol = sessionStorage.getItem("mySymbol");
-      const savedRoom   = sessionStorage.getItem("roomId");
-
-      if (savedRoom === roomId && savedSymbol) {
-        // Came from lobby — rejoin so server re-registers our new socket ID
-        // and sends back current board state (fixes the stuck-on-waiting race condition)
-        updateSymbol(savedSymbol);
-        socket.emit("rejoin_room", { roomId, symbol: savedSymbol });
-      } else {
-        // Direct URL access — try to join as O
-        socket.emit("join_room", roomId);
+        if (savedRoom === roomId && savedSymbol) {
+          // Came from lobby — rejoin so server re-registers our new socket ID
+          // and sends back current board state (fixes the stuck-on-waiting race condition)
+          updateSymbol(savedSymbol);
+          socket.emit("rejoin_room", { roomId, symbol: savedSymbol });
+        } else {
+          // Direct URL access — try to join as O
+          socket.emit("join_room", roomId);
+        }
       }
+    };
+
+    if (socket.connected) {
+      onConnect();
+    } else {
+      socket.on("connect", onConnect);
+      socket.connect();
     }
 
     // Server response to get_room_state — syncs board/phase on mount
@@ -147,6 +156,7 @@ export default function MultiGame() {
       setMoves(m);
       setTurn(t);
       setWinner(null);
+      setRematchStatus(null); // Reset rematch status
       updatePhase("playing");
     });
 
@@ -177,12 +187,25 @@ export default function MultiGame() {
       }
     });
 
+    socket.on("rematch_requested", ({ symbol }) => {
+      if (symbol !== mySymbolRef.current) {
+        setRematchStatus("received");
+      }
+    });
+
     socket.on("error_message", (msg) => {
       setToast(msg);
       setTimeout(() => setToast(null), 4000);
+      // Automatically redirect to lobby if room is missing or full
+      if (msg.toLowerCase().includes("room not found") || msg.toLowerCase().includes("room is full")) {
+        setTimeout(() => {
+          goBack();
+        }, 3000);
+      }
     });
 
     return () => {
+      socket.off("connect", onConnect);
       socket.off("room_state");
       socket.off("joined_room");
       socket.off("game_start");
@@ -190,6 +213,7 @@ export default function MultiGame() {
       socket.off("game_over");
       socket.off("player_left");
       socket.off("player_rejoined");
+      socket.off("rematch_requested");
       socket.off("error_message");
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -201,8 +225,7 @@ export default function MultiGame() {
   }, [isMyTurn, board, phase, roomId]);
 
   function handleRematch() {
-    // Both players will receive game_start — no need to set phase here,
-    // game_start handler will set it to "playing" for both sides
+    setRematchStatus("sent");
     socket.emit("request_rematch", roomId);
   }
 
@@ -215,6 +238,7 @@ export default function MultiGame() {
 
   function goBack() {
     sessionStorage.clear();
+    socket.emit("leave_room");
     navigate("/multiplayer");
   }
 
@@ -345,11 +369,25 @@ export default function MultiGame() {
               }`} style={{ fontFamily:'"Permanent Marker",cursive' }}>
                 {winner === "draw" ? "Nobody wins this time!" : isWinState ? "Brilliant! ✓" : "Better luck next time."}
               </p>
+              {rematchStatus === "sent" && (
+                <p className="text-xs italic opacity-60 animate-pulse" style={{ fontFamily:'"Permanent Marker",cursive' }}>
+                  Waiting for opponent to accept rematch...
+                </p>
+              )}
+              {rematchStatus === "received" && (
+                <p className="text-xs italic text-yellow-600 font-bold" style={{ fontFamily:'"Permanent Marker",cursive' }}>
+                  Opponent wants a rematch!
+                </p>
+              )}
               <div className="flex flex-col gap-2">
-                <button id="btn-rematch" onClick={handleRematch}
-                  className="border-2 border-zinc-800 px-6 py-1.5 text-base font-bold bg-zinc-800 text-white -rotate-1 hover:bg-zinc-700 transition active:scale-95"
+                <button id="btn-rematch" onClick={handleRematch} disabled={rematchStatus === "sent"}
+                  className="border-2 border-zinc-800 px-6 py-1.5 text-base font-bold bg-zinc-800 text-white -rotate-1 hover:bg-zinc-700 transition active:scale-95 disabled:opacity-40 disabled:scale-100"
                   style={{ fontFamily:'"Permanent Marker",cursive' }}>
-                  ↺ Rematch
+                  {rematchStatus === "sent" 
+                    ? "⌛ Waiting..." 
+                    : rematchStatus === "received" 
+                      ? "✓ Accept Rematch" 
+                      : "↺ Rematch"}
                 </button>
                 <button onClick={goBack}
                   className="border-2 border-zinc-800 px-6 py-1.5 text-sm italic opacity-60 hover:opacity-90 rotate-1 transition active:scale-95"
