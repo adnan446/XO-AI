@@ -93,6 +93,9 @@ export default function MultiGame() {
   const phaseRef    = useRef("connecting");
   const hasJoinedRef = useRef(false);
   
+  const clickSoundRef = useRef(new Audio("/sounds/click.wav"));
+  const winSoundRef = useRef(new Audio("/sounds/win.wav"));
+  
   // Refs for Optimistic UI Rollback
   const rollbackTimeoutRef = useRef(null);
   const previousStateRef = useRef(null);
@@ -106,6 +109,13 @@ export default function MultiGame() {
       rollbackTimeoutRef.current = null;
     }
   }, []);
+
+  useEffect(() => {
+    if (winner && winner !== "draw") {
+      winSoundRef.current.currentTime = 0;
+      winSoundRef.current.play().catch(e => console.error("Win sound error:", e));
+    }
+  }, [winner]);
 
   const winLine    = useMemo(() => getWinLine(board), [board]);
   const isMyTurn   = phase === "playing" && turn === mySymbol;
@@ -178,6 +188,8 @@ export default function MultiGame() {
       setBoard(b);
       setMoves(m);
       setTurn(t);
+      clickSoundRef.current.currentTime = 0;
+      clickSoundRef.current.play().catch(e => console.error("Click sound error:", e));
     });
 
     socket.on("game_over", ({ board: b, moves: m, winner: w }) => {
@@ -237,6 +249,9 @@ export default function MultiGame() {
   const handleCellClick = useCallback((index) => {
     if (!isMyTurn || board[index] || phase !== "playing") return;
     
+    clickSoundRef.current.currentTime = 0;
+    clickSoundRef.current.play().catch(e => console.error("Click sound error:", e));
+
     // 1. Save previous state for rollback
     previousStateRef.current = { board, moves, turn };
 
